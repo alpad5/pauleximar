@@ -1,0 +1,57 @@
+:root {
+	--paper: #fbfaf7;
+	--ink: #1d1c1a;
+	--muted: #8a857c;
+	--accent: #f4c95d;
+
+	color-scheme: light;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	background: var(--paper);
+	color: var(--ink);
+	font-family:
+		'Inter',
+		-apple-system,
+		BlinkMacSystemFont,
+		'Segoe UI',
+		'Helvetica Neue',
+		Arial,
+		sans-serif;
+	font-size: 15px;
+	line-height: 1.45;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+button {
+	font-family: inherit;
+}
+
+a {
+	color: var(--ink);
+}
+
+::selection {
+	background: var(--accent);
+	color: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--paper: #1d1c1a;
+		--ink: #f3f1ec;
+		--muted: #8a857c;
+		color-scheme: dark;
+	}
+	body {
+		background: #131210;
+	}
+}
