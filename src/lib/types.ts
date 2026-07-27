@@ -1,4 +1,4 @@
-export type BlockKind = 'todos' | 'notes' | 'grocery' | 'messages';
+export type BlockKind = 'todos' | 'notes' | 'grocery' | 'messages' | 'prioridades';
 
 export type Board = {
 	id: string;
@@ -14,6 +14,8 @@ export type Block = {
 	position: number;
 };
 
+export type Priority = 'alta' | 'media' | 'baja';
+
 export type Todo = {
 	id: string;
 	block_id: string;
@@ -21,6 +23,8 @@ export type Todo = {
 	done: boolean;
 	position: number;
 	created_at: string;
+	priority: Priority | null;
+	due_date: string | null; // 'YYYY-MM-DD' or null
 };
 
 // A notes-kind block holds a single free-text body (null for non-notes blocks).

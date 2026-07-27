@@ -5,7 +5,7 @@ import { publish } from '$lib/server/realtime';
 import { isPaletteColor } from '$lib/palette';
 import type { BlockKind } from '$lib/types';
 
-const CREATABLE_KINDS: BlockKind[] = ['todos', 'notes'];
+const CREATABLE_KINDS: BlockKind[] = ['todos', 'notes', 'prioridades'];
 
 export const POST: RequestHandler = async ({ params, request }) => {
 	const boardId = params.id;

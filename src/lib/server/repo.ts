@@ -1,5 +1,8 @@
 import { sql } from './db';
-import type { Board, Block, BlockKind, Todo, BoardSnapshot } from '$lib/types';
+import type { Board, Block, BlockKind, Priority, Todo, BoardSnapshot } from '$lib/types';
+
+// Columns for a full Todo row; due_date is normalised to a 'YYYY-MM-DD' string.
+const TODO_COLS = sql`id, block_id, text, done, position, priority, to_char(due_date, 'YYYY-MM-DD') as due_date, created_at`;
 
 const DEFAULT_TODOS_COLOR = '#f4c95d';
 
@@ -36,7 +39,7 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 	const blockIds = blocks.map((b) => b.id);
 
 	const todos = await sql<Todo[]>`
-		select id, block_id, text, done, position, created_at
+		select ${TODO_COLS}
 		from todos
 		where block_id in ${sql(blockIds)}
 		order by position, created_at
@@ -120,18 +123,28 @@ export async function addTodo(blockId: string, text: string): Promise<Todo> {
 			${text},
 			coalesce((select max(position) + 1 from todos where block_id = ${blockId}), 0)
 		)
-		returning id, block_id, text, done, position, created_at
+		returning ${TODO_COLS}
 	`;
 	return todo;
 }
 
-export async function setTodoDone(todoId: string, done: boolean, boardId: string): Promise<Todo | null> {
+export type TodoPatch = {
+	done?: boolean;
+	priority?: Priority | null;
+	due_date?: string | null;
+};
+
+export async function updateTodo(
+	todoId: string,
+	patch: TodoPatch,
+	boardId: string
+): Promise<Todo | null> {
 	const [todo] = await sql<Todo[]>`
 		update todos
-		set done = ${done}
+		set ${sql(patch as Record<string, unknown>)}
 		where id = ${todoId}
 		  and block_id in (select id from blocks where board_id = ${boardId})
-		returning id, block_id, text, done, position, created_at
+		returning ${TODO_COLS}
 	`;
 	return todo ?? null;
 }
@@ -147,6 +160,16 @@ export async function deleteTodo(
 		returning id, block_id
 	`;
 	return rows[0] ?? null;
+}
+
+export async function deleteBlock(blockId: string, boardId: string): Promise<boolean> {
+	// todos/notes rows are removed via ON DELETE CASCADE.
+	const rows = await sql`
+		delete from blocks
+		where id = ${blockId} and board_id = ${boardId}
+		returning id
+	`;
+	return rows.length > 0;
 }
 
 export async function renameBlock(blockId: string, title: string, boardId: string): Promise<boolean> {

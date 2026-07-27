@@ -4,10 +4,13 @@
 	import Block from '$lib/components/Block.svelte';
 	import TodoBlock from '$lib/components/TodoBlock.svelte';
 	import NotesBlock from '$lib/components/NotesBlock.svelte';
+	import SummaryBlock from '$lib/components/SummaryBlock.svelte';
 	import type { PageData } from './$types';
 	import type { BoardEvent } from '$lib/server/realtime';
 	import type { BlockKind } from '$lib/types';
 	import { PALETTE } from '$lib/palette';
+	import { comparePriority } from '$lib/priority';
+	import { pickFrom } from '$lib/phrases';
 
 	type Props = { data: PageData };
 	let { data }: Props = $props();
@@ -20,6 +23,27 @@
 
 	// svelte-ignore state_referenced_locally
 	const boardId = data.snapshot.board.id;
+
+	// Every prioritised, still-open task across all todos blocks — feeds the summary block.
+	const prioritized = $derived(
+		blocks
+			.filter((b) => b.kind === 'todos')
+			.flatMap((b) =>
+				b.todos
+					.filter((t) => !t.done && (t.priority || t.due_date))
+					.map((t) => ({ ...t, blockTitle: b.title, blockColor: b.color }))
+			)
+			.sort(comparePriority)
+	);
+
+	// Priorities render as a full-width banner above the mosaic grid of the rest.
+	const banners = $derived(blocks.filter((b) => b.kind === 'prioridades'));
+	const gridBlocks = $derived(blocks.filter((b) => b.kind !== 'prioridades'));
+
+	// Deterministic per-block width (1 or 2 columns) → a playful mosaic, stable across reloads.
+	function blockSpan(id: string): number {
+		return pickFrom([1, 1, 1, 2, 2], id);
+	}
 
 	function applyEvent(event: BoardEvent) {
 		if (event.type === 'todo_added') {
@@ -43,6 +67,8 @@
 			if (!blocks.some((b) => b.id === event.block.id)) {
 				blocks.push({ ...event.block, todos: [] });
 			}
+		} else if (event.type === 'block_deleted') {
+			blocks = blocks.filter((b) => b.id !== event.id);
 		} else if (event.type === 'note_updated') {
 			const block = blocks.find((b) => b.id === event.block_id);
 			if (block) block.note = event.body;
@@ -63,6 +89,7 @@
 			'todo_deleted',
 			'block_renamed',
 			'block_added',
+			'block_deleted',
 			'note_updated'
 		];
 		for (const type of types) {
@@ -138,20 +165,27 @@
 	</button>
 </header>
 
-<main class="grid">
-	{#each blocks as block (block.id)}
-		<Block {block} {boardId}>
-			{#if block.kind === 'todos'}
-				<TodoBlock blockId={block.id} {boardId} todos={block.todos} />
-			{:else if block.kind === 'notes'}
-				<NotesBlock blockId={block.id} {boardId} body={block.note ?? ''} />
-			{:else}
-				<p class="todo-fallback">block kind "{block.kind}" not implemented yet</p>
-			{/if}
+<main class="board">
+	{#each banners as block (block.id)}
+		<Block {block} {boardId} banner>
+			<SummaryBlock items={prioritized} />
 		</Block>
 	{/each}
 
-	{#if adding}
+	<section class="grid">
+		{#each gridBlocks as block (block.id)}
+			<Block {block} {boardId} wide={blockSpan(block.id) === 2}>
+				{#if block.kind === 'todos'}
+					<TodoBlock blockId={block.id} {boardId} todos={block.todos} />
+				{:else if block.kind === 'notes'}
+					<NotesBlock blockId={block.id} {boardId} body={block.note ?? ''} />
+				{:else}
+					<p class="todo-fallback">block kind "{block.kind}" not implemented yet</p>
+				{/if}
+			</Block>
+		{/each}
+
+		{#if adding}
 		<section class="add-block">
 			<div class="kinds">
 				<button class:active={newKind === 'todos'} onclick={() => (newKind = 'todos')}>
@@ -159,6 +193,12 @@
 				</button>
 				<button class:active={newKind === 'notes'} onclick={() => (newKind = 'notes')}>
 					notas
+				</button>
+				<button
+					class:active={newKind === 'prioridades'}
+					onclick={() => (newKind = 'prioridades')}
+				>
+					prioridades
 				</button>
 			</div>
 			<!-- svelte-ignore a11y_autofocus -->
@@ -198,6 +238,7 @@
 			<span>＋ añadir bloque</span>
 		</button>
 	{/if}
+	</section>
 </main>
 
 <style>
@@ -228,13 +269,20 @@
 	.share:hover {
 		background: rgba(0, 0, 0, 0.04);
 	}
-	.grid {
+	.board {
 		max-width: 80rem;
 		margin: 0 auto;
 		padding: 0.5rem 1.6rem 3rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1.2rem;
+	}
+	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
 		gap: 1.2rem;
+		grid-auto-flow: dense;
+		align-items: start;
 	}
 	.todo-fallback {
 		color: var(--muted);

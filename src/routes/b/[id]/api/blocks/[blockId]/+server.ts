@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { renameBlock } from '$lib/server/repo';
+import { renameBlock, deleteBlock } from '$lib/server/repo';
 import { publish } from '$lib/server/realtime';
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
@@ -13,5 +13,13 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (!ok) throw error(404, 'Block not found on this board');
 
 	publish(params.id, { type: 'block_renamed', block: { id: params.blockId, title } });
+	return json({ ok: true });
+};
+
+export const DELETE: RequestHandler = async ({ params }) => {
+	const ok = await deleteBlock(params.blockId, params.id);
+	if (!ok) throw error(404, 'Block not found on this board');
+
+	publish(params.id, { type: 'block_deleted', id: params.blockId });
 	return json({ ok: true });
 };

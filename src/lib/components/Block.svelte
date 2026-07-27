@@ -5,10 +5,12 @@
 	type Props = {
 		block: Block;
 		boardId: string;
+		banner?: boolean;
+		wide?: boolean;
 		children: Snippet;
 	};
 
-	let { block, boardId, children }: Props = $props();
+	let { block, boardId, banner = false, wide = false, children }: Props = $props();
 
 	let editing = $state(false);
 	let draft = $state('');
@@ -37,9 +39,15 @@
 			editing = false;
 		}
 	}
+
+	async function remove() {
+		const ok = confirm(`¿Eliminar el bloque "${block.title}"? Se borrará todo su contenido.`);
+		if (!ok) return;
+		await fetch(`/b/${boardId}/api/blocks/${block.id}`, { method: 'DELETE' });
+	}
 </script>
 
-<section class="block" style="--accent: {block.color};">
+<section class="block" class:banner class:wide style="--accent: {block.color};">
 	<header>
 		{#if editing}
 			<!-- svelte-ignore a11y_autofocus -->
@@ -56,6 +64,9 @@
 				{block.title}
 			</button>
 		{/if}
+		<button class="delete" onclick={remove} title="Eliminar bloque" aria-label="Eliminar bloque">
+			×
+		</button>
 	</header>
 	<div class="body">
 		{@render children()}
@@ -74,7 +85,20 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		min-height: 14rem;
+		min-height: 8rem;
+	}
+	/* Mosaic: some blocks span two columns on wider screens. */
+	.block.wide {
+		grid-column: span 2;
+	}
+	@media (max-width: 40rem) {
+		.block.wide {
+			grid-column: span 1;
+		}
+	}
+	/* Full-width priorities banner sits above the grid; hug its content. */
+	.block.banner {
+		min-height: auto;
 	}
 	.block::before {
 		content: '';
@@ -86,7 +110,30 @@
 	header {
 		display: flex;
 		align-items: center;
+		gap: 0.5rem;
 		margin: 0.25rem 0 0.9rem;
+	}
+	.delete {
+		margin-left: auto;
+		flex-shrink: 0;
+		border: none;
+		background: transparent;
+		color: var(--muted);
+		font-size: 1.2rem;
+		line-height: 1;
+		padding: 0.1rem 0.4rem;
+		border-radius: 0.4rem;
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 0.12s;
+	}
+	.block:hover .delete,
+	.delete:focus-visible {
+		opacity: 1;
+	}
+	.delete:hover {
+		background: rgba(0, 0, 0, 0.06);
+		color: var(--ink);
 	}
 	.title,
 	.title-input {
