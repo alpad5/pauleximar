@@ -5,8 +5,8 @@
 <main>
 	<div class="card">
 		<h1>{page.status}</h1>
-		<p>{page.error?.message ?? 'something went wrong'}</p>
-		<a href="/">← back to start</a>
+		<p>{page.error?.message ?? 'algo salió mal'}</p>
+		<a href="/">← volver al inicio</a>
 	</div>
 </main>
 

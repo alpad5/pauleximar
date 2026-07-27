@@ -1,5 +1,5 @@
 import { sql } from './db';
-import type { Board, Block, Todo, BoardSnapshot } from '$lib/types';
+import type { Board, Block, BlockKind, Todo, BoardSnapshot } from '$lib/types';
 
 const DEFAULT_TODOS_COLOR = '#f4c95d';
 
@@ -33,11 +33,17 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 		order by position, id
 	`;
 
+	const blockIds = blocks.map((b) => b.id);
+
 	const todos = await sql<Todo[]>`
 		select id, block_id, text, done, position, created_at
 		from todos
-		where block_id in ${sql(blocks.map((b) => b.id))}
+		where block_id in ${sql(blockIds)}
 		order by position, created_at
+	`;
+
+	const notes = await sql<{ block_id: string; body: string }[]>`
+		select block_id, body from notes where block_id in ${sql(blockIds)}
 	`;
 
 	const todosByBlock = new Map<string, Todo[]>();
@@ -47,10 +53,56 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 		todosByBlock.set(t.block_id, list);
 	}
 
+	const noteByBlock = new Map<string, string>();
+	for (const n of notes) noteByBlock.set(n.block_id, n.body);
+
 	return {
 		board: boards[0],
-		blocks: blocks.map((b) => ({ ...b, todos: todosByBlock.get(b.id) ?? [] }))
+		blocks: blocks.map((b) => ({
+			...b,
+			todos: todosByBlock.get(b.id) ?? [],
+			note: noteByBlock.get(b.id) ?? null
+		}))
 	};
+}
+
+export async function createBlock(
+	boardId: string,
+	kind: BlockKind,
+	title: string,
+	color: string
+): Promise<Block & { note: string | null }> {
+	const [block] = await sql<Block[]>`
+		insert into blocks (board_id, kind, title, color, position)
+		values (
+			${boardId},
+			${kind},
+			${title},
+			${color},
+			coalesce((select max(position) + 1 from blocks where board_id = ${boardId}), 0)
+		)
+		returning id, board_id, kind, title, color, position
+	`;
+	if (kind === 'notes') {
+		await sql`insert into notes (block_id, body) values (${block.id}, '')`;
+		return { ...block, note: '' };
+	}
+	return { ...block, note: null };
+}
+
+export async function setNote(
+	blockId: string,
+	body: string,
+	boardId: string
+): Promise<string | null> {
+	const rows = await sql<{ body: string }[]>`
+		update notes
+		set body = ${body}, updated_at = now()
+		where block_id = ${blockId}
+		  and block_id in (select id from blocks where board_id = ${boardId} and kind = 'notes')
+		returning body
+	`;
+	return rows[0]?.body ?? null;
 }
 
 export async function assertBlockBelongsToBoard(blockId: string, boardId: string): Promise<boolean> {

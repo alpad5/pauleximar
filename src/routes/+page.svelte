@@ -15,18 +15,18 @@
 <main class="landing">
 	<div class="card">
 		<h1>pauleximar</h1>
-		<p class="subtitle">a tiny shared board for two</p>
+		<p class="subtitle">un pequeño tablero compartido para dos</p>
 
 		<form method="POST" action="?/create">
-			<button type="submit" class="primary">Create a new board</button>
+			<button type="submit" class="primary">Crear un tablero nuevo</button>
 		</form>
 
 		{#if savedBoardId}
-			<a class="resume" href={`/b/${savedBoardId}`}>resume your last board →</a>
+			<a class="resume" href={`/b/${savedBoardId}`}>volver a tu último tablero →</a>
 		{/if}
 
 		<p class="hint">
-			After creating, bookmark the URL and share it with your partner. Whoever has the link is in.
+			Después de crearlo, guarda la URL y compártela con tu pareja. Quien tenga el enlace, entra.
 		</p>
 	</div>
 </main>

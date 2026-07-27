@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Todo } from '$lib/types';
+	import { TODO_PLACEHOLDERS, TODO_EMPTY, pickFrom } from '$lib/phrases';
 
 	type Props = {
 		blockId: string;
@@ -8,6 +9,12 @@
 	};
 
 	let { blockId, boardId, todos }: Props = $props();
+
+	// blockId is a stable prop; reading it once to seed the phrase is intentional.
+	// svelte-ignore state_referenced_locally
+	const placeholder = pickFrom(TODO_PLACEHOLDERS, blockId);
+	// svelte-ignore state_referenced_locally
+	const emptyText = pickFrom(TODO_EMPTY, blockId + '·empty');
 
 	let draft = $state('');
 	let submitting = $state(false);
@@ -59,10 +66,10 @@
 				<input type="checkbox" checked={todo.done} onchange={() => toggle(todo)} />
 				<span class="text">{todo.text}</span>
 			</label>
-			<button class="remove" onclick={() => remove(todo)} aria-label="Delete">×</button>
+			<button class="remove" onclick={() => remove(todo)} aria-label="Eliminar">×</button>
 		</li>
 	{:else}
-		<li class="empty">nothing yet</li>
+		<li class="empty">{emptyText}</li>
 	{/each}
 </ul>
 
@@ -75,12 +82,12 @@
 >
 	<input
 		type="text"
-		placeholder="add something…"
+		placeholder={placeholder}
 		bind:value={draft}
 		onkeydown={onKeydown}
 		maxlength="500"
 	/>
-	<button type="submit" disabled={!draft.trim() || submitting} aria-label="Add">+</button>
+	<button type="submit" disabled={!draft.trim() || submitting} aria-label="Añadir">+</button>
 </form>
 
 <style>

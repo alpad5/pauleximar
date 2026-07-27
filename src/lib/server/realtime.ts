@@ -4,7 +4,9 @@ export type BoardEvent =
 	| { type: 'todo_added'; todo: Todo }
 	| { type: 'todo_updated'; todo: Todo }
 	| { type: 'todo_deleted'; id: string; block_id: string }
-	| { type: 'block_renamed'; block: Pick<Block, 'id' | 'title'> };
+	| { type: 'block_renamed'; block: Pick<Block, 'id' | 'title'> }
+	| { type: 'block_added'; block: Block & { note: string | null } }
+	| { type: 'note_updated'; block_id: string; body: string };
 
 type Handler = (event: BoardEvent) => void;
 

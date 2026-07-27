@@ -52,7 +52,7 @@
 				maxlength="80"
 			/>
 		{:else}
-			<button class="title" onclick={startEdit} title="Rename">
+			<button class="title" onclick={startEdit} title="Renombrar">
 				{block.title}
 			</button>
 		{/if}
@@ -64,7 +64,7 @@
 
 <style>
 	.block {
-		background: var(--paper);
+		background: color-mix(in srgb, var(--accent) 12%, var(--paper));
 		border-radius: 1.1rem;
 		padding: 1.25rem 1.25rem 1rem;
 		box-shadow:

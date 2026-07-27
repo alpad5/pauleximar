@@ -23,7 +23,10 @@ export type Todo = {
 	created_at: string;
 };
 
+// A notes-kind block holds a single free-text body (null for non-notes blocks).
+export type BlockContent = Block & { todos: Todo[]; note: string | null };
+
 export type BoardSnapshot = {
 	board: Board;
-	blocks: Array<Block & { todos: Todo[] }>;
+	blocks: BlockContent[];
 };
