@@ -1,16 +1,29 @@
 <script lang="ts">
 	import type { Block } from '$lib/types';
 	import type { Snippet } from 'svelte';
+	import Mark from './Mark.svelte';
 
 	type Props = {
 		block: Block;
 		boardId: string;
 		banner?: boolean;
 		wide?: boolean;
+		/** Folded search query, for highlighting the title. */
+		query?: string;
+		/** True while a search is running and this block has no match. */
+		dimmed?: boolean;
 		children: Snippet;
 	};
 
-	let { block, boardId, banner = false, wide = false, children }: Props = $props();
+	let {
+		block,
+		boardId,
+		banner = false,
+		wide = false,
+		query = '',
+		dimmed = false,
+		children
+	}: Props = $props();
 
 	let editing = $state(false);
 	let draft = $state('');
@@ -47,7 +60,7 @@
 	}
 </script>
 
-<section class="block" class:banner class:wide style="--accent: {block.color};">
+<section class="block" class:banner class:wide class:dimmed style="--accent: {block.color};">
 	<header>
 		{#if editing}
 			<!-- svelte-ignore a11y_autofocus -->
@@ -61,7 +74,7 @@
 			/>
 		{:else}
 			<button class="title" onclick={startEdit} title="Renombrar">
-				{block.title}
+				<Mark text={block.title} {query} />
 			</button>
 		{/if}
 		<button class="delete" onclick={remove} title="Eliminar bloque" aria-label="Eliminar bloque">
@@ -95,6 +108,20 @@
 		.block.wide {
 			grid-column: span 1;
 		}
+	}
+	/* Searching: matches keep their colour, everything else recedes. */
+	.block.dimmed {
+		opacity: 0.3;
+		filter: saturate(0.4);
+	}
+	.block.dimmed:hover,
+	.block.dimmed:focus-within {
+		opacity: 0.75;
+	}
+	.block {
+		transition:
+			opacity 0.15s,
+			filter 0.15s;
 	}
 	/* Full-width priorities banner sits above the grid; hug its content. */
 	.block.banner {
