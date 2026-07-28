@@ -74,6 +74,15 @@
   (`Logo.svelte`): 28px in the board topbar, 44px on the landing page. Font is self-hosted
   (`static/fonts/yeseva-one-latin-400.woff2`, latin subset, 11 KB) as `--font-display`, so
   there's no third-party font request.
+- **Board-wide search** (PR #5). Searches block titles, task text and note bodies from the
+  topbar. Because the whole board is already in memory on the client (`blocks` state, kept
+  fresh by SSE), this needed **no endpoint, no index and no dependency** — it's a filter over
+  existing state. `src/lib/search.ts` (50 lines) + `Mark.svelte` (25); bundle grew ~1 kB.
+  Matching blocks stay lit while the rest fade and desaturate, so the mosaic never reflows.
+  Two decisions worth remembering: `fold()` strips diacritics **while preserving string
+  length 1:1**, so `limite` matches `límite` *and* highlight offsets still map onto the
+  original accented text; and notes go read-only during a search, because highlighting
+  inside a live `<textarea>` needs an overlay hack that costs more than the feature.
 
 ### The certificate saga — read this before touching Railway domains again
 Getting TLS on the custom domain took ~90 minutes and most of it was wasted motion. The
