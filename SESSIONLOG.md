@@ -110,8 +110,42 @@ What was wasted, so it isn't repeated:
 - Cert **issued and valid**: `CN=www.bavardage.org`, Let's Encrypt, expires 2026-10-26.
 - Apex → `https://www.bavardage.org` redirect works (dummy proxied `A 192.0.2.1` + Cloudflare
   Redirect Rule).
-- **Outstanding:** `https://www.bavardage.org` returns **404** with `x-railway-fallback: true`,
-  while the railway.app domain returns 200. Railway's edge isn't routing the hostname to the
-  service. Two candidates, in order: (1) the custom domain has `targetPort: null` while the
-  app listens on **8080** — set it via `customDomainUpdate`; (2) the edge may need a redeploy
-  to bind the new hostname. Neither tried yet.
+- ~~**Outstanding:** `https://www.bavardage.org` returns **404** with `x-railway-fallback: true`~~
+  **— resolved.** It was candidate (2): the edge needed a redeploy to bind the new hostname.
+  Merging the search PR triggered one and `www` started serving 200 with no further action.
+  `targetPort` was never touched, so it was not the cause.
+
+### Shipped and deployed
+- **Search merged (PR #5) and live.** Push-to-deploy fired automatically on merge; deploy
+  went green with no manual `railway up`. Verified serving on both `www.bavardage.org` and
+  the railway.app host.
+- **Confirmed the deploy is DB-inert.** Checked before merging, since the question came up:
+  the diff was client-side only, and migrations run *exclusively* via `npm run migrate`
+  (manual, `--env-file=.env`) — absent from the Dockerfile, from `railway.json`'s
+  `startCommand`, and from any npm lifecycle hook. Row counts identical across the deploy
+  (3 boards / 11 blocks / 22 todos / 1 note). A deploy replaces the web container only;
+  Postgres is a separate service.
+- Note for future deploys: any push to `main` rebuilds, including docs-only commits, and
+  a redeploy drops open SSE connections. `EventSource` auto-reconnects, but a tab left open
+  across the restart can miss events sent during the gap and sit stale until reloaded.
+
+### Next up — board title (designed, not built)
+Deferred mid-way; branch `feat/board-title` is parked at `main` with nothing committed.
+The plan, so it needn't be re-derived: replace the `bavardage` wordmark in the board topbar
+with a user-chosen, click-to-edit board name that also drives the browser tab title, with
+the whole brand (logo + name) **centered** — search moves to the left of the topbar,
+`copiar enlace` stays right. Roughly 6 files, ~90 lines:
+1. `migrations/005_board_title.sql` — `alter table boards add column if not exists title
+   text not null default ''` (additive; existing rows get `''`).
+2. `repo.ts` — add `title` to the snapshot select (~line 31) and a `renameBoard()` mirroring
+   the existing `renameBlock()`.
+3. `types.ts` — `Board.title: string`.
+4. `PATCH /b/[id]/api/board` — near-copy of the blocks PATCH endpoint.
+5. `realtime.ts` — a `board_renamed` event, so a rename appears live for the other person.
+6. `+page.svelte` — click-to-edit brand (reuse `Block.svelte`'s edit pattern), `<title>`
+   follows it. Empty title falls back to `bavardage`, so existing boards look unchanged and
+   clearing the field can't leave a blank topbar. Keep the logo itself as the link to `/`.
+
+**Ordering matters here, unlike the search deploy:** run `npm run migrate` against prod
+**first** (a no-op for the running app, which never selects the column), *then* merge.
+Deploying the code first would 500 every board page on the snapshot query.
