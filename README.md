@@ -1,6 +1,9 @@
-# pauleximar
+# bavardage
 
 A tiny shared board for two. Color-coded blocks, no accounts — anyone with the URL is in.
+
+Lives at [www.bavardage.org](https://www.bavardage.org). (`pauleximar` was the working
+name and still shows up in the repo, npm package and Railway service names — internal only.)
 
 Stack: SvelteKit + TypeScript, Postgres (Railway), Server-Sent Events for live sync.
 

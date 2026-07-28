@@ -5,6 +5,7 @@
 	import TodoBlock from '$lib/components/TodoBlock.svelte';
 	import NotesBlock from '$lib/components/NotesBlock.svelte';
 	import SummaryBlock from '$lib/components/SummaryBlock.svelte';
+	import Logo from '$lib/components/Logo.svelte';
 	import type { PageData } from './$types';
 	import type { BoardEvent } from '$lib/server/realtime';
 	import type { BlockKind } from '$lib/types';
@@ -77,7 +78,7 @@
 
 	onMount(() => {
 		try {
-			localStorage.setItem('pauleximar:lastBoard', boardId);
+			localStorage.setItem('bavardage:lastBoard', boardId);
 		} catch {
 			// localStorage may be unavailable; not fatal.
 		}
@@ -155,11 +156,11 @@
 </script>
 
 <svelte:head>
-	<title>pauleximar — board</title>
+	<title>bavardage — tablero</title>
 </svelte:head>
 
 <header class="topbar">
-	<a href="/" class="brand">pauleximar</a>
+	<a href="/" class="brand"><Logo size={28} /><span>bavardage</span></a>
 	<button class="share" onclick={copyLink}>
 		{copied ? 'copiado ✓' : 'copiar enlace'}
 	</button>
@@ -251,6 +252,9 @@
 		margin: 0 auto;
 	}
 	.brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
 		font-weight: 600;
 		text-decoration: none;
 		color: var(--ink);
