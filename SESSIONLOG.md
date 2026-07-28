@@ -67,3 +67,51 @@
 - **Wiped the database** (`truncate boards cascade`) to start fresh on the real domain —
   14 test boards from prior verification runs removed, schema and tables intact.
 - **`CLAUDE.md`:** added a PR policy — open PRs and ask before merging.
+- **Rebrand to `bavardage`** (PR #3). `pauleximar` is now internal only (repo, npm package
+  and Railway service names keep it). All user-facing copy, page titles and the
+  `localStorage` key renamed.
+- **Logo.** Lowercase `b` in Yeseva One, set in an accent-filled rounded square
+  (`Logo.svelte`): 28px in the board topbar, 44px on the landing page. Font is self-hosted
+  (`static/fonts/yeseva-one-latin-400.woff2`, latin subset, 11 KB) as `--font-display`, so
+  there's no third-party font request.
+- **Board-wide search** (PR #5). Searches block titles, task text and note bodies from the
+  topbar. Because the whole board is already in memory on the client (`blocks` state, kept
+  fresh by SSE), this needed **no endpoint, no index and no dependency** — it's a filter over
+  existing state. `src/lib/search.ts` (50 lines) + `Mark.svelte` (25); bundle grew ~1 kB.
+  Matching blocks stay lit while the rest fade and desaturate, so the mosaic never reflows.
+  Two decisions worth remembering: `fold()` strips diacritics **while preserving string
+  length 1:1**, so `limite` matches `límite` *and* highlight offsets still map onto the
+  original accented text; and notes go read-only during a search, because highlighting
+  inside a live `<textarea>` needs an overlay hack that costs more than the feature.
+
+### The certificate saga — read this before touching Railway domains again
+Getting TLS on the custom domain took ~90 minutes and most of it was wasted motion. The
+actual cause, found only at the end:
+
+> **A Railway custom domain requires TWO DNS records.** The `CNAME` for traffic, *and* a
+> `TXT` at `_railway-verify.<label>` carrying an ownership token. The GraphQL API's
+> `status.dnsRecords` returns **only the CNAME** — the TXT requirement appears **only** in
+> the dashboard, under the domain row's "Show DNS records". Without it the cert sits in
+> `VALIDATING_OWNERSHIP` indefinitely and no error is surfaced anywhere in the API.
+
+Once the TXT was added, the `customDomainIssueCertificate(id)` mutation flipped it to
+`VALID` in seconds — no waiting required.
+
+What was wasted, so it isn't repeated:
+- The domain was deleted and re-created **twice** as a blind retry. Each re-create rotates
+  the `*.up.railway.app` CNAME target, costing a manual Cloudflare edit each time.
+- A confident-but-wrong diagnosis ("Cloudflare apex CNAME flattening breaks Railway's
+  ownership check") drove a move from the apex to `www`. `www` is the better setup anyway
+  and was kept, but it was not the fix — the apex would have worked fine with the TXT record.
+- Lesson: when a provider reports a stuck state, read the provider's own UI before mutating
+  anything. The answer was on screen the whole time and absent from the API.
+
+### Final state
+- Cert **issued and valid**: `CN=www.bavardage.org`, Let's Encrypt, expires 2026-10-26.
+- Apex → `https://www.bavardage.org` redirect works (dummy proxied `A 192.0.2.1` + Cloudflare
+  Redirect Rule).
+- **Outstanding:** `https://www.bavardage.org` returns **404** with `x-railway-fallback: true`,
+  while the railway.app domain returns 200. Railway's edge isn't routing the hostname to the
+  service. Two candidates, in order: (1) the custom domain has `targetPort: null` while the
+  app listens on **8080** — set it via `customDomainUpdate`; (2) the edge may need a redeploy
+  to bind the new hostname. Neither tried yet.
