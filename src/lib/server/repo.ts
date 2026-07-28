@@ -2,7 +2,10 @@ import { sql } from './db';
 import type { Board, Block, BlockKind, Priority, Todo, BoardSnapshot } from '$lib/types';
 
 // Columns for a full Todo row; due_date is normalised to a 'YYYY-MM-DD' string.
-const TODO_COLS = sql`id, block_id, text, done, position, priority, to_char(due_date, 'YYYY-MM-DD') as due_date, created_at`;
+// Built lazily — evaluating `sql` at module scope would open a connection when the
+// SvelteKit build analyser imports this file, where DATABASE_URL isn't set.
+const todoCols = () =>
+	sql`id, block_id, text, done, position, priority, to_char(due_date, 'YYYY-MM-DD') as due_date, created_at`;
 
 const DEFAULT_TODOS_COLOR = '#f4c95d';
 
@@ -39,7 +42,7 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 	const blockIds = blocks.map((b) => b.id);
 
 	const todos = await sql<Todo[]>`
-		select ${TODO_COLS}
+		select ${todoCols()}
 		from todos
 		where block_id in ${sql(blockIds)}
 		order by position, created_at
@@ -123,7 +126,7 @@ export async function addTodo(blockId: string, text: string): Promise<Todo> {
 			${text},
 			coalesce((select max(position) + 1 from todos where block_id = ${blockId}), 0)
 		)
-		returning ${TODO_COLS}
+		returning ${todoCols()}
 	`;
 	return todo;
 }
@@ -144,7 +147,7 @@ export async function updateTodo(
 		set ${sql(patch as Record<string, unknown>)}
 		where id = ${todoId}
 		  and block_id in (select id from blocks where board_id = ${boardId})
-		returning ${TODO_COLS}
+		returning ${todoCols()}
 	`;
 	return todo ?? null;
 }
