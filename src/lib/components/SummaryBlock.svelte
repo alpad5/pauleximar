@@ -1,28 +1,34 @@
 <script lang="ts">
 	import type { Todo } from '$lib/types';
 	import { priColor, priTitle, dueLabel } from '$lib/priority';
+	import { hits } from '$lib/search';
+	import Mark from './Mark.svelte';
 
 	type Item = Todo & { blockTitle: string; blockColor: string };
 
 	type Props = {
 		items: Item[];
+		/** Folded search query; when set, chips narrow to matching tasks. */
+		query?: string;
 	};
 
-	let { items }: Props = $props();
+	let { items, query = '' }: Props = $props();
+
+	const shown = $derived(items.filter((i) => !query || hits(i.text, query)));
 </script>
 
 <div class="chips">
-	{#each items as item (item.id)}
+	{#each shown as item (item.id)}
 		<span class="chip" style="--pri: {priColor(item.priority)};" title={`en ${item.blockTitle}`}>
 			<span class="dot" aria-label={priTitle(item.priority)}></span>
-			<span class="text">{item.text}</span>
+			<span class="text"><Mark text={item.text} {query} /></span>
 			{#if item.due_date}
 				<span class="due {dueLabel(item.due_date).state}">{dueLabel(item.due_date).text}</span>
 			{/if}
 			<span class="src" style="--c: {item.blockColor};">{item.blockTitle}</span>
 		</span>
 	{:else}
-		<span class="empty">sin prioridades todavía</span>
+		<span class="empty">{query ? 'sin coincidencias aquí' : 'sin prioridades todavía'}</span>
 	{/each}
 </div>
 

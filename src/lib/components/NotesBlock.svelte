@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { NOTE_PLACEHOLDERS, pickFrom } from '$lib/phrases';
+	import { excerpt } from '$lib/search';
+	import Mark from './Mark.svelte';
 
 	type Props = {
 		blockId: string;
 		boardId: string;
 		body: string;
+		/** Folded search query; when set, the note shows a read-only excerpt. */
+		query?: string;
 	};
 
-	let { blockId, boardId, body }: Props = $props();
+	let { blockId, boardId, body, query = '' }: Props = $props();
 
 	// blockId is a stable prop; reading it once to seed the phrase is intentional.
 	// svelte-ignore state_referenced_locally
@@ -55,17 +59,29 @@
 	}
 </script>
 
-<textarea
-	class="note"
-	bind:value={draft}
-	oninput={onInput}
-	onfocus={() => (focused = true)}
-	onblur={onBlur}
-	{placeholder}
-	maxlength="10000"
-></textarea>
+{#if query}
+	<!-- Read-only while searching: a window onto the match, not the whole note. -->
+	<p class="hit"><Mark text={excerpt(draft, query)} {query} /></p>
+{:else}
+	<textarea
+		class="note"
+		bind:value={draft}
+		oninput={onInput}
+		onfocus={() => (focused = true)}
+		onblur={onBlur}
+		{placeholder}
+		maxlength="10000"
+	></textarea>
+{/if}
 
 <style>
+	.hit {
+		margin: 0;
+		font-size: 0.92rem;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
 	.note {
 		flex: 1;
 		width: 100%;

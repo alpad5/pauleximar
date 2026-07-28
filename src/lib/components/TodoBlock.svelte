@@ -2,14 +2,18 @@
 	import type { Todo } from '$lib/types';
 	import { TODO_PLACEHOLDERS, TODO_EMPTY, pickFrom } from '$lib/phrases';
 	import { PRIORITY_CYCLE, priColor, priTitle, comparePriority, dueLabel } from '$lib/priority';
+	import { hits } from '$lib/search';
+	import Mark from './Mark.svelte';
 
 	type Props = {
 		blockId: string;
 		boardId: string;
 		todos: Todo[];
+		/** Folded search query; when set, the list narrows to matching tasks. */
+		query?: string;
 	};
 
-	let { blockId, boardId, todos }: Props = $props();
+	let { blockId, boardId, todos, query = '' }: Props = $props();
 
 	// blockId is a stable prop; reading it once to seed the phrase is intentional.
 	// svelte-ignore state_referenced_locally
@@ -24,10 +28,12 @@
 	// Completed tasks sink to the bottom; among active ones, priority rises to the
 	// top, then earliest due date, then original order.
 	const sorted = $derived(
-		[...todos].sort((a, b) => {
-			if (a.done !== b.done) return a.done ? 1 : -1;
-			return comparePriority(a, b);
-		})
+		[...todos]
+			.filter((t) => !query || hits(t.text, query))
+			.sort((a, b) => {
+				if (a.done !== b.done) return a.done ? 1 : -1;
+				return comparePriority(a, b);
+			})
 	);
 
 	async function patchTodo(id: string, body: Record<string, unknown>) {
@@ -89,7 +95,7 @@
 		<li class:done={todo.done} style="--pri: {priColor(todo.priority)};">
 			<label>
 				<input type="checkbox" checked={todo.done} onchange={() => toggle(todo)} />
-				<span class="text">{todo.text}</span>
+				<span class="text"><Mark text={todo.text} {query} /></span>
 			</label>
 			{#if dueOpenId === todo.id}
 				<!-- svelte-ignore a11y_autofocus -->
@@ -127,26 +133,29 @@
 			></button>
 		</li>
 	{:else}
-		<li class="empty">{emptyText}</li>
+		<li class="empty">{query ? 'sin coincidencias aquí' : emptyText}</li>
 	{/each}
 </ul>
 
-<form
-	class="add"
-	onsubmit={(e) => {
-		e.preventDefault();
-		addItem();
-	}}
->
-	<input
-		type="text"
-		placeholder={placeholder}
-		bind:value={draft}
-		onkeydown={onKeydown}
-		maxlength="500"
-	/>
-	<button type="submit" disabled={!draft.trim() || submitting} aria-label="Añadir">+</button>
-</form>
+<!-- While searching the board, the composer would only be noise. -->
+{#if !query}
+	<form
+		class="add"
+		onsubmit={(e) => {
+			e.preventDefault();
+			addItem();
+		}}
+	>
+		<input
+			type="text"
+			placeholder={placeholder}
+			bind:value={draft}
+			onkeydown={onKeydown}
+			maxlength="500"
+		/>
+		<button type="submit" disabled={!draft.trim() || submitting} aria-label="Añadir">+</button>
+	</form>
+{/if}
 
 <style>
 	.list {

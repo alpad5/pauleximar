@@ -12,6 +12,8 @@
 	import { PALETTE } from '$lib/palette';
 	import { comparePriority } from '$lib/priority';
 	import { pickFrom } from '$lib/phrases';
+	import { fold, hits } from '$lib/search';
+	import type { BlockContent } from '$lib/types';
 
 	type Props = { data: PageData };
 	let { data }: Props = $props();
@@ -44,6 +46,43 @@
 	// Deterministic per-block width (1 or 2 columns) → a playful mosaic, stable across reloads.
 	function blockSpan(id: string): number {
 		return pickFrom([1, 1, 1, 2, 2], id);
+	}
+
+	// --- Search ---
+	// The board is already fully in memory, so searching is a pure filter over
+	// `blocks`: no endpoint, no index. The mosaic keeps its layout; matches stay
+	// lit and everything else recedes.
+	let query = $state('');
+	let searchEl = $state<HTMLInputElement | null>(null);
+	const q = $derived(fold(query.trim()));
+
+	function blockMatches(block: BlockContent): boolean {
+		return (
+			hits(block.title, q) ||
+			hits(block.note, q) ||
+			block.todos.some((t) => hits(t.text, q)) ||
+			(block.kind === 'prioridades' && prioritized.some((t) => hits(t.text, q)))
+		);
+	}
+
+	const matchCount = $derived(q ? blocks.filter(blockMatches).length : 0);
+
+	// A block whose *title* matched is shown whole and unfiltered — you asked for
+	// that block, not for a slice of it.
+	function bodyQuery(block: BlockContent): string {
+		if (!q || hits(block.title, q)) return '';
+		return blockMatches(block) ? q : '';
+	}
+
+	function onWindowKeydown(e: KeyboardEvent) {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+			e.preventDefault();
+			searchEl?.focus();
+			searchEl?.select();
+		} else if (e.key === 'Escape' && query) {
+			query = '';
+			searchEl?.blur();
+		}
 	}
 
 	function applyEvent(event: BoardEvent) {
@@ -159,8 +198,29 @@
 	<title>bavardage — tablero</title>
 </svelte:head>
 
+<svelte:window onkeydown={onWindowKeydown} />
+
 <header class="topbar">
 	<a href="/" class="brand"><Logo size={28} /><span>bavardage</span></a>
+
+	<div class="search" class:active={!!q}>
+		<span class="glass" aria-hidden="true">⌕</span>
+		<input
+			bind:this={searchEl}
+			bind:value={query}
+			type="search"
+			placeholder="buscar en el tablero"
+			aria-label="Buscar en el tablero"
+			maxlength="80"
+		/>
+		{#if q}
+			<span class="count">
+				{matchCount === 0 ? 'nada' : matchCount === 1 ? '1 bloque' : `${matchCount} bloques`}
+			</span>
+			<button class="clear" onclick={() => (query = '')} aria-label="Limpiar búsqueda">×</button>
+		{/if}
+	</div>
+
 	<button class="share" onclick={copyLink}>
 		{copied ? 'copiado ✓' : 'copiar enlace'}
 	</button>
@@ -168,25 +228,38 @@
 
 <main class="board">
 	{#each banners as block (block.id)}
-		<Block {block} {boardId} banner>
-			<SummaryBlock items={prioritized} />
+		<Block {block} {boardId} banner query={q} dimmed={!!q && !blockMatches(block)}>
+			<SummaryBlock items={prioritized} query={bodyQuery(block)} />
 		</Block>
 	{/each}
 
 	<section class="grid">
 		{#each gridBlocks as block (block.id)}
-			<Block {block} {boardId} wide={blockSpan(block.id) === 2}>
+			<Block
+				{block}
+				{boardId}
+				wide={blockSpan(block.id) === 2}
+				query={q}
+				dimmed={!!q && !blockMatches(block)}
+			>
 				{#if block.kind === 'todos'}
-					<TodoBlock blockId={block.id} {boardId} todos={block.todos} />
+					<TodoBlock blockId={block.id} {boardId} todos={block.todos} query={bodyQuery(block)} />
 				{:else if block.kind === 'notes'}
-					<NotesBlock blockId={block.id} {boardId} body={block.note ?? ''} />
+					<NotesBlock
+						blockId={block.id}
+						{boardId}
+						body={block.note ?? ''}
+						query={bodyQuery(block)}
+					/>
 				{:else}
 					<p class="todo-fallback">block kind "{block.kind}" not implemented yet</p>
 				{/if}
 			</Block>
 		{/each}
 
-		{#if adding}
+		{#if q}
+			<!-- nothing: the composer stays out of the way while searching -->
+		{:else if adding}
 		<section class="add-block">
 			<div class="kinds">
 				<button class:active={newKind === 'todos'} onclick={() => (newKind = 'todos')}>
@@ -246,10 +319,91 @@
 	.topbar {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: 0.75rem;
 		padding: 1.2rem 1.6rem;
 		max-width: 80rem;
 		margin: 0 auto;
+	}
+	.search {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin-left: auto;
+		padding: 0.3rem 0.55rem 0.3rem 0.65rem;
+		border-radius: 999px;
+		border: 1px solid rgba(0, 0, 0, 0.1);
+		background: var(--paper);
+		transition:
+			border-color 0.15s,
+			box-shadow 0.15s;
+	}
+	.search:focus-within,
+	.search.active {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+	}
+	.glass {
+		color: var(--muted);
+		font-size: 1.05rem;
+		line-height: 1;
+	}
+	.search input {
+		font: inherit;
+		font-size: 0.85rem;
+		width: 9rem;
+		border: none;
+		outline: none;
+		background: transparent;
+		color: var(--ink);
+		transition: width 0.18s ease;
+	}
+	.search input::placeholder {
+		color: var(--muted);
+	}
+	.search input:focus,
+	.search.active input {
+		width: 13rem;
+	}
+	/* The native search affordance duplicates our own clear button. */
+	.search input::-webkit-search-cancel-button {
+		appearance: none;
+	}
+	.count {
+		font-size: 0.72rem;
+		font-weight: 600;
+		color: var(--muted);
+		white-space: nowrap;
+	}
+	.clear {
+		border: none;
+		background: transparent;
+		color: var(--muted);
+		font-size: 1.05rem;
+		line-height: 1;
+		padding: 0 0.15rem;
+		cursor: pointer;
+	}
+	.clear:hover {
+		color: var(--ink);
+	}
+	@media (max-width: 34rem) {
+		.topbar {
+			flex-wrap: wrap;
+		}
+		.search {
+			order: 3;
+			width: 100%;
+			margin-left: 0;
+		}
+		.search input,
+		.search input:focus,
+		.search.active input {
+			width: 100%;
+			flex: 1;
+		}
+		.share {
+			margin-left: auto;
+		}
 	}
 	.brand {
 		display: inline-flex;
