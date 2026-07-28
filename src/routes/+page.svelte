@@ -1,20 +1,22 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Logo from '$lib/components/Logo.svelte';
 
 	let savedBoardId = $state<string | null>(null);
 
 	onMount(() => {
-		savedBoardId = localStorage.getItem('pauleximar:lastBoard');
+		savedBoardId = localStorage.getItem('bavardage:lastBoard');
 	});
 </script>
 
 <svelte:head>
-	<title>pauleximar</title>
+	<title>bavardage</title>
 </svelte:head>
 
 <main class="landing">
 	<div class="card">
-		<h1>pauleximar</h1>
+		<Logo size={44} />
+		<h1>bavardage</h1>
 		<p class="subtitle">un pequeño tablero compartido para dos</p>
 
 		<form method="POST" action="?/create">
@@ -44,7 +46,7 @@
 		padding: 2.5rem 2rem;
 	}
 	h1 {
-		margin: 0 0 0.25rem;
+		margin: 0.9rem 0 0.25rem;
 		font-size: 2rem;
 		letter-spacing: -0.02em;
 	}
