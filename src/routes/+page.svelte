@@ -17,7 +17,7 @@
 	<div class="card">
 		<Logo size={44} />
 		<h1>bavardage</h1>
-		<p class="subtitle">un pequeño tablero compartido para dos</p>
+		<p class="subtitle">un pequeño tablero compartido</p>
 
 		<form method="POST" action="?/create">
 			<button type="submit" class="primary">Crear un tablero nuevo</button>
@@ -28,7 +28,7 @@
 		{/if}
 
 		<p class="hint">
-			Después de crearlo, guarda la URL y compártela con tu pareja. Quien tenga el enlace, entra.
+			Después de crearlo, guarda la URL y compártela. Quien tenga el enlace, entra.
 		</p>
 	</div>
 </main>
