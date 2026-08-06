@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { page } from '$app/state';
 	import Block from '$lib/components/Block.svelte';
 	import TodoBlock from '$lib/components/TodoBlock.svelte';
@@ -44,8 +44,77 @@
 	const gridBlocks = $derived(blocks.filter((b) => b.kind !== 'prioridades'));
 
 	// Deterministic per-block width (1 or 2 columns) → a playful mosaic, stable across reloads.
+	// `block.span` overrides it once the user has explicitly resized that block.
 	function blockSpan(id: string): number {
 		return pickFrom([1, 1, 1, 2, 2], id);
+	}
+	function widthOf(block: BlockContent): number {
+		return block.span ?? blockSpan(block.id);
+	}
+
+	// --- Drag to reorder (grid blocks only) ---
+	let dragId = $state<string | null>(null);
+	let dragDelta = $state({ dx: 0, dy: 0 });
+	let dragOrigin = { x: 0, y: 0 };
+
+	function onGrab(e: PointerEvent, id: string) {
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		dragId = id;
+		dragOrigin = { x: e.clientX, y: e.clientY };
+		dragDelta = { dx: 0, dy: 0 };
+	}
+
+	function onDragMove(e: PointerEvent) {
+		if (!dragId) return;
+		dragDelta = { dx: e.clientX - dragOrigin.x, dy: e.clientY - dragOrigin.y };
+	}
+
+	// `pointer-events: none` on the dragging block (see Block.svelte) means
+	// elementFromPoint lands on whatever's underneath it.
+	function onDragEnd(e: PointerEvent) {
+		if (!dragId) return;
+		const id = dragId;
+		dragId = null;
+		dragDelta = { dx: 0, dy: 0 };
+		const dropId = (document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-block-id]') as
+			| HTMLElement
+			| null)?.dataset.blockId;
+		if (dropId && dropId !== id) moveBefore(id, dropId);
+	}
+
+	function moveBefore(id: string, beforeId: string) {
+		const ids = gridBlocks.map((b) => b.id);
+		const from = ids.indexOf(id);
+		if (from === -1 || ids.indexOf(beforeId) === -1) return;
+		ids.splice(from, 1);
+		ids.splice(ids.indexOf(beforeId), 0, id);
+		reorderGrid(ids);
+	}
+
+	function nudge(id: string, delta: number) {
+		const ids = gridBlocks.map((b) => b.id);
+		const i = ids.indexOf(id);
+		const j = i + delta;
+		if (i === -1 || j < 0 || j >= ids.length) return;
+		[ids[i], ids[j]] = [ids[j], ids[i]];
+		reorderGrid(ids);
+	}
+
+	// Optimistic local reorder, then persist. Banners keep their own relative
+	// order; they aren't part of `ids` so they're carried over untouched.
+	function reorderGrid(ids: string[]) {
+		const byId = new Map(blocks.map((b) => [b.id, b]));
+		const banners = blocks.filter((b) => b.kind === 'prioridades');
+		const grid = ids.map((id) => byId.get(id)).filter((b): b is BlockContent => !!b);
+		blocks = [...banners, ...grid];
+		fetch(`/b/${boardId}/api/blocks`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ order: ids })
+		}).catch(() => {
+			// SSE echo (from ourselves, on success) is how this normally settles;
+			// on failure the board just stays in the optimistic order until reload.
+		});
 	}
 
 	// --- Search ---
@@ -112,6 +181,14 @@
 		} else if (event.type === 'note_updated') {
 			const block = blocks.find((b) => b.id === event.block_id);
 			if (block) block.note = event.body;
+		} else if (event.type === 'blocks_reordered') {
+			const byId = new Map(blocks.map((b) => [b.id, b]));
+			const moved = event.order.map((id) => byId.get(id)).filter((b): b is BlockContent => !!b);
+			const rest = blocks.filter((b) => !event.order.includes(b.id));
+			blocks = [...rest, ...moved];
+		} else if (event.type === 'block_resized') {
+			const block = blocks.find((b) => b.id === event.id);
+			if (block) block.span = event.span;
 		}
 	}
 
@@ -130,7 +207,9 @@
 			'block_renamed',
 			'block_added',
 			'block_deleted',
-			'note_updated'
+			'note_updated',
+			'blocks_reordered',
+			'block_resized'
 		];
 		for (const type of types) {
 			source.addEventListener(type, (e) => {
@@ -198,7 +277,12 @@
 	<title>bavardage — tablero</title>
 </svelte:head>
 
-<svelte:window onkeydown={onWindowKeydown} />
+<svelte:window
+	onkeydown={onWindowKeydown}
+	onpointermove={onDragMove}
+	onpointerup={onDragEnd}
+	onpointercancel={onDragEnd}
+/>
 
 <header class="topbar">
 	<a href="/" class="brand"><Logo size={28} /><span>bavardage</span></a>
@@ -238,9 +322,15 @@
 			<Block
 				{block}
 				{boardId}
-				wide={blockSpan(block.id) === 2}
+				wide={widthOf(block) === 2}
 				query={q}
 				dimmed={!!q && !blockMatches(block)}
+				movable={!q}
+				dragging={dragId === block.id}
+				dx={dragId === block.id ? dragDelta.dx : 0}
+				dy={dragId === block.id ? dragDelta.dy : 0}
+				onGrab={(e) => onGrab(e, block.id)}
+				onNudge={(delta) => nudge(block.id, delta)}
 			>
 				{#if block.kind === 'todos'}
 					<TodoBlock blockId={block.id} {boardId} todos={block.todos} query={bodyQuery(block)} />

@@ -7,6 +7,8 @@ export type BoardEvent =
 	| { type: 'block_renamed'; block: Pick<Block, 'id' | 'title'> }
 	| { type: 'block_added'; block: Block & { note: string | null } }
 	| { type: 'block_deleted'; id: string }
+	| { type: 'blocks_reordered'; order: string[] }
+	| { type: 'block_resized'; id: string; span: number | null }
 	| { type: 'note_updated'; block_id: string; body: string };
 
 type Handler = (event: BoardEvent) => void;
