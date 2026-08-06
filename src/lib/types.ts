@@ -12,6 +12,8 @@ export type Block = {
 	title: string;
 	color: string;
 	position: number;
+	/** Column width, 1 or 2. Null = no preference; the UI picks a mosaic width. */
+	span: number | null;
 };
 
 export type Priority = 'alta' | 'media' | 'baja';

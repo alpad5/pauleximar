@@ -33,7 +33,7 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 	if (boards.length === 0) return null;
 
 	const blocks = await sql<Block[]>`
-		select id, board_id, kind, title, color, position
+		select id, board_id, kind, title, color, position, span
 		from blocks
 		where board_id = ${boardId}
 		order by position, id
@@ -87,7 +87,7 @@ export async function createBlock(
 			${color},
 			coalesce((select max(position) + 1 from blocks where board_id = ${boardId}), 0)
 		)
-		returning id, board_id, kind, title, color, position
+		returning id, board_id, kind, title, color, position, span
 	`;
 	if (kind === 'notes') {
 		await sql`insert into notes (block_id, body) values (${block.id}, '')`;
@@ -169,6 +169,39 @@ export async function deleteBlock(blockId: string, boardId: string): Promise<boo
 	// todos/notes rows are removed via ON DELETE CASCADE.
 	const rows = await sql`
 		delete from blocks
+		where id = ${blockId} and board_id = ${boardId}
+		returning id
+	`;
+	return rows.length > 0;
+}
+
+/**
+ * Renumber the board's blocks to match `ids` (position = index in the list).
+ *
+ * Blocks not named in the list keep their existing position. Since a fresh block
+ * is created with `max(position) + 1`, one added concurrently by another client
+ * simply stays at the end rather than being lost.
+ */
+export async function reorderBlocks(boardId: string, ids: string[]): Promise<number> {
+	if (ids.length === 0) return 0;
+	const rows = await sql`
+		update blocks as b
+		set position = u.pos
+		from unnest(${ids}::uuid[], ${ids.map((_, i) => i)}::int[]) as u(id, pos)
+		where b.id = u.id and b.board_id = ${boardId}
+		returning b.id
+	`;
+	return rows.length;
+}
+
+export async function setBlockSpan(
+	blockId: string,
+	span: number | null,
+	boardId: string
+): Promise<boolean> {
+	const rows = await sql`
+		update blocks
+		set span = ${span}
 		where id = ${blockId} and board_id = ${boardId}
 		returning id
 	`;
