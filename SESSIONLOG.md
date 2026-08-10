@@ -170,3 +170,7 @@ What was wasted, so it isn't repeated:
 
 ## 2026-08-10 (cont.)
 - **Deployed `calculo`/`resultados` migration.** Railway US-West outage from earlier today cleared; `npm run migrate` ran clean against live Postgres (006_calculo.sql applied, `calc_items` table live). PR #10 already open for the feature branch, waiting on merge go-ahead.
+
+## 2026-08-10 (cont. 2)
+- **Verified `calculo`/`resultados` on localhost** against the live Railway Postgres (dev and prod share the same `DATABASE_URL`): created a test board, added a `calculo` block, two items (60€/40€, different payer colors), confirmed the `resultados` banner rendered the correct settle-up sentence ("green debe 10,00 € purple"). Deleted the test board afterward (cascade delete cleaned up its blocks/items). No Playwright installed, so verification was via curl + raw HTML inspection rather than a screenshot — same tradeoff as the 2026-08-05 session.
+- **Merged PR #10 and deployed to prod.** `gh pr merge 10 --merge`; Railway auto-built from the push-to-deploy hookup. Confirmed live within ~15s by hitting `POST /b/.../api/calc` on the production URL and getting the expected `400` validation response instead of a route-not-found 404.
