@@ -115,3 +115,47 @@ What was wasted, so it isn't repeated:
   service. Two candidates, in order: (1) the custom domain has `targetPort: null` while the
   app listens on **8080** — set it via `customDomainUpdate`; (2) the edge may need a redeploy
   to bind the new hostname. Neither tried yet.
+
+## 2026-08-05
+- **Feature: drag-to-reorder and width toggle for grid blocks** (PR #8). Picked up
+  unfinished work from a prior session — server side (migration, `repo.ts`, SSE events,
+  API routes) and `Block.svelte`'s grip/toggle UI already existed uncommitted; missing
+  piece was wiring drag state and the new SSE events into `+page.svelte`.
+  - `migrations/005_block_span.sql`: nullable `blocks.span` (1 or 2; null = mosaic default).
+  - Drag: pointerdown on a grip captures the pointer; the dragged block rides the pointer
+    via `translate` while its grid slot stays put as the drop preview (`pointer-events: none`
+    so `elementFromPoint` hits the block underneath). Drop reorders via "insert before
+    target". Arrow keys on the focused grip nudge by one position — the keyboard fallback.
+  - New SSE events `blocks_reordered` / `block_resized` sync both actions live.
+  - Migration run against the live Railway Postgres (additive, idempotent).
+  - Verified manually in the browser (chromium-cli / Playwright weren't installed, and
+    installing Playwright + a Chromium binary for a one-off check wasn't worth it).
+- **Landing page copy** (PR #9): dropped "para dos" / "tu pareja" from the subtitle and
+  hint text — same pitch, without assuming who the board is shared with. Authored directly
+  on GitHub's web editor, not through this session; just opened + merged the PR for it.
+
+## 2026-08-10
+- **Feature: `calculo` (shared expenses) and `resultados` (settle-up) block kinds.**
+  Asked first whether the two payers needed names — user chose color-only identity, no
+  person names anywhere, so the whole feature stays color-keyed (no naming/accounts system).
+  - `migrations/006_calculo.sql`: `calc_items(id, block_id, text, amount numeric(10,2),
+    payer 'a'|'b' nullable, position, created_at)`; extends `blocks_kind_check`.
+  - `src/lib/calc.ts`: payer color/cycle (purple `#8a6fb0` / green `#4f9e6c`, distinct from
+    the priority reds/oranges/blues), `formatMoney` (es-ES/EUR), `settle()` — whoever paid
+    less owes half the difference.
+  - `repo.ts`: `addCalcItem` / `updateCalcItem` / `deleteCalcItem`; snapshot now attaches
+    `calc_items` per block (amount cast to `float8` so postgres.js returns a number, not a
+    numeric string).
+  - Endpoints: `POST /b/[id]/api/calc`, `PATCH`/`DELETE /b/[id]/api/calc/[itemId]`.
+  - New SSE events `calc_item_added/updated/deleted`.
+  - `CalcBlock.svelte` (item list: text, amount, payer-color cycle dot, like the priority
+    dot) and `ResultsBlock.svelte` (renders as a full-width banner like `prioridades`;
+    board-wide totals per color + settle-up sentence, aggregated across all `calculo`
+    blocks the same way the priorities banner aggregates todos).
+  - `svelte-check` (0 errors) and `npm run build` both clean.
+  - **Not yet run:** `npm run migrate` against the live Railway Postgres — this sandbox's
+    network lets a TCP handshake through to `centerbeam.proxy.rlwy.net:20338` but drops the
+    actual data (connect succeeds, first write/read times out), so the Postgres wire
+    protocol never completes. Confirmed with a raw-socket test, not sandbox-specific (same
+    result with the sandbox disabled). Someone needs to run `npm run migrate` from a
+    machine that can actually reach Railway before this feature works on the real board.

@@ -5,6 +5,8 @@
 	import TodoBlock from '$lib/components/TodoBlock.svelte';
 	import NotesBlock from '$lib/components/NotesBlock.svelte';
 	import SummaryBlock from '$lib/components/SummaryBlock.svelte';
+	import CalcBlock from '$lib/components/CalcBlock.svelte';
+	import ResultsBlock from '$lib/components/ResultsBlock.svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import type { PageData } from './$types';
 	import type { BoardEvent } from '$lib/server/realtime';
@@ -39,9 +41,13 @@
 			.sort(comparePriority)
 	);
 
-	// Priorities render as a full-width banner above the mosaic grid of the rest.
-	const banners = $derived(blocks.filter((b) => b.kind === 'prioridades'));
-	const gridBlocks = $derived(blocks.filter((b) => b.kind !== 'prioridades'));
+	// Every expense across all calculation blocks — feeds the results block.
+	const calcItems = $derived(blocks.filter((b) => b.kind === 'calculo').flatMap((b) => b.calc_items));
+
+	// Priorities and results render as full-width banners above the mosaic grid.
+	const BANNER_KINDS = ['prioridades', 'resultados'];
+	const banners = $derived(blocks.filter((b) => BANNER_KINDS.includes(b.kind)));
+	const gridBlocks = $derived(blocks.filter((b) => !BANNER_KINDS.includes(b.kind)));
 
 	// Deterministic per-block width (1 or 2 columns) → a playful mosaic, stable across reloads.
 	// `block.span` overrides it once the user has explicitly resized that block.
@@ -130,6 +136,7 @@
 			hits(block.title, q) ||
 			hits(block.note, q) ||
 			block.todos.some((t) => hits(t.text, q)) ||
+			block.calc_items.some((i) => hits(i.text, q)) ||
 			(block.kind === 'prioridades' && prioritized.some((t) => hits(t.text, q)))
 		);
 	}
@@ -176,6 +183,20 @@
 			if (!blocks.some((b) => b.id === event.block.id)) {
 				blocks.push({ ...event.block, todos: [] });
 			}
+		} else if (event.type === 'calc_item_added') {
+			const block = blocks.find((b) => b.id === event.item.block_id);
+			if (block && !block.calc_items.some((i) => i.id === event.item.id)) {
+				block.calc_items.push(event.item);
+			}
+		} else if (event.type === 'calc_item_updated') {
+			const block = blocks.find((b) => b.id === event.item.block_id);
+			if (!block) return;
+			const idx = block.calc_items.findIndex((i) => i.id === event.item.id);
+			if (idx >= 0) block.calc_items[idx] = event.item;
+		} else if (event.type === 'calc_item_deleted') {
+			const block = blocks.find((b) => b.id === event.block_id);
+			if (!block) return;
+			block.calc_items = block.calc_items.filter((i) => i.id !== event.id);
 		} else if (event.type === 'block_deleted') {
 			blocks = blocks.filter((b) => b.id !== event.id);
 		} else if (event.type === 'note_updated') {
@@ -209,7 +230,10 @@
 			'block_deleted',
 			'note_updated',
 			'blocks_reordered',
-			'block_resized'
+			'block_resized',
+			'calc_item_added',
+			'calc_item_updated',
+			'calc_item_deleted'
 		];
 		for (const type of types) {
 			source.addEventListener(type, (e) => {
@@ -313,7 +337,11 @@
 <main class="board">
 	{#each banners as block (block.id)}
 		<Block {block} {boardId} banner query={q} dimmed={!!q && !blockMatches(block)}>
-			<SummaryBlock items={prioritized} query={bodyQuery(block)} />
+			{#if block.kind === 'resultados'}
+				<ResultsBlock items={calcItems} />
+			{:else}
+				<SummaryBlock items={prioritized} query={bodyQuery(block)} />
+			{/if}
 		</Block>
 	{/each}
 
@@ -341,6 +369,13 @@
 						body={block.note ?? ''}
 						query={bodyQuery(block)}
 					/>
+				{:else if block.kind === 'calculo'}
+					<CalcBlock
+						blockId={block.id}
+						{boardId}
+						items={block.calc_items}
+						query={bodyQuery(block)}
+					/>
 				{:else}
 					<p class="todo-fallback">block kind "{block.kind}" not implemented yet</p>
 				{/if}
@@ -363,6 +398,12 @@
 					onclick={() => (newKind = 'prioridades')}
 				>
 					prioridades
+				</button>
+				<button class:active={newKind === 'calculo'} onclick={() => (newKind = 'calculo')}>
+					cálculos
+				</button>
+				<button class:active={newKind === 'resultados'} onclick={() => (newKind = 'resultados')}>
+					resultados
 				</button>
 			</div>
 			<!-- svelte-ignore a11y_autofocus -->

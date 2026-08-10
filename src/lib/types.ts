@@ -1,4 +1,11 @@
-export type BlockKind = 'todos' | 'notes' | 'grocery' | 'messages' | 'prioridades';
+export type BlockKind =
+	| 'todos'
+	| 'notes'
+	| 'grocery'
+	| 'messages'
+	| 'prioridades'
+	| 'calculo'
+	| 'resultados';
 
 export type Board = {
 	id: string;
@@ -29,8 +36,20 @@ export type Todo = {
 	due_date: string | null; // 'YYYY-MM-DD' or null
 };
 
+export type Payer = 'a' | 'b';
+
+export type CalcItem = {
+	id: string;
+	block_id: string;
+	text: string;
+	amount: number;
+	payer: Payer | null;
+	position: number;
+	created_at: string;
+};
+
 // A notes-kind block holds a single free-text body (null for non-notes blocks).
-export type BlockContent = Block & { todos: Todo[]; note: string | null };
+export type BlockContent = Block & { todos: Todo[]; note: string | null; calc_items: CalcItem[] };
 
 export type BoardSnapshot = {
 	board: Board;

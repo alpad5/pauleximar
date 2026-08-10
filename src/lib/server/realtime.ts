@@ -1,15 +1,18 @@
-import type { Block, Todo } from '$lib/types';
+import type { Block, Todo, CalcItem } from '$lib/types';
 
 export type BoardEvent =
 	| { type: 'todo_added'; todo: Todo }
 	| { type: 'todo_updated'; todo: Todo }
 	| { type: 'todo_deleted'; id: string; block_id: string }
 	| { type: 'block_renamed'; block: Pick<Block, 'id' | 'title'> }
-	| { type: 'block_added'; block: Block & { note: string | null } }
+	| { type: 'block_added'; block: Block & { note: string | null; calc_items: CalcItem[] } }
 	| { type: 'block_deleted'; id: string }
 	| { type: 'blocks_reordered'; order: string[] }
 	| { type: 'block_resized'; id: string; span: number | null }
-	| { type: 'note_updated'; block_id: string; body: string };
+	| { type: 'note_updated'; block_id: string; body: string }
+	| { type: 'calc_item_added'; item: CalcItem }
+	| { type: 'calc_item_updated'; item: CalcItem }
+	| { type: 'calc_item_deleted'; id: string; block_id: string };
 
 type Handler = (event: BoardEvent) => void;
 
