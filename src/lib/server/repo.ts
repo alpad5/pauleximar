@@ -1,11 +1,15 @@
 import { sql } from './db';
-import type { Board, Block, BlockKind, Priority, Todo, BoardSnapshot } from '$lib/types';
+import type { Board, Block, BlockKind, Priority, Todo, CalcItem, Payer, BoardSnapshot } from '$lib/types';
 
 // Columns for a full Todo row; due_date is normalised to a 'YYYY-MM-DD' string.
 // Built lazily — evaluating `sql` at module scope would open a connection when the
 // SvelteKit build analyser imports this file, where DATABASE_URL isn't set.
 const todoCols = () =>
 	sql`id, block_id, text, done, position, priority, to_char(due_date, 'YYYY-MM-DD') as due_date, created_at`;
+
+// amount is numeric(10,2) in Postgres; cast to float8 so postgres.js returns a
+// plain JS number instead of a string.
+const calcCols = () => sql`id, block_id, text, amount::float8 as amount, payer, position, created_at`;
 
 const DEFAULT_TODOS_COLOR = '#f4c95d';
 
@@ -52,6 +56,13 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 		select block_id, body from notes where block_id in ${sql(blockIds)}
 	`;
 
+	const calcItems = await sql<CalcItem[]>`
+		select ${calcCols()}
+		from calc_items
+		where block_id in ${sql(blockIds)}
+		order by position, created_at
+	`;
+
 	const todosByBlock = new Map<string, Todo[]>();
 	for (const t of todos) {
 		const list = todosByBlock.get(t.block_id) ?? [];
@@ -62,12 +73,20 @@ export async function getBoardSnapshot(boardId: string): Promise<BoardSnapshot |
 	const noteByBlock = new Map<string, string>();
 	for (const n of notes) noteByBlock.set(n.block_id, n.body);
 
+	const calcByBlock = new Map<string, CalcItem[]>();
+	for (const c of calcItems) {
+		const list = calcByBlock.get(c.block_id) ?? [];
+		list.push(c);
+		calcByBlock.set(c.block_id, list);
+	}
+
 	return {
 		board: boards[0],
 		blocks: blocks.map((b) => ({
 			...b,
 			todos: todosByBlock.get(b.id) ?? [],
-			note: noteByBlock.get(b.id) ?? null
+			note: noteByBlock.get(b.id) ?? null,
+			calc_items: calcByBlock.get(b.id) ?? []
 		}))
 	};
 }
@@ -77,7 +96,7 @@ export async function createBlock(
 	kind: BlockKind,
 	title: string,
 	color: string
-): Promise<Block & { note: string | null }> {
+): Promise<Block & { note: string | null; calc_items: CalcItem[] }> {
 	const [block] = await sql<Block[]>`
 		insert into blocks (board_id, kind, title, color, position)
 		values (
@@ -91,9 +110,9 @@ export async function createBlock(
 	`;
 	if (kind === 'notes') {
 		await sql`insert into notes (block_id, body) values (${block.id}, '')`;
-		return { ...block, note: '' };
+		return { ...block, note: '', calc_items: [] };
 	}
-	return { ...block, note: null };
+	return { ...block, note: null, calc_items: [] };
 }
 
 export async function setNote(
@@ -159,6 +178,54 @@ export async function deleteTodo(
 	const rows = await sql<{ id: string; block_id: string }[]>`
 		delete from todos
 		where id = ${todoId}
+		  and block_id in (select id from blocks where board_id = ${boardId})
+		returning id, block_id
+	`;
+	return rows[0] ?? null;
+}
+
+export async function addCalcItem(blockId: string, text: string, amount: number): Promise<CalcItem> {
+	const [item] = await sql<CalcItem[]>`
+		insert into calc_items (block_id, text, amount, position)
+		values (
+			${blockId},
+			${text},
+			${amount},
+			coalesce((select max(position) + 1 from calc_items where block_id = ${blockId}), 0)
+		)
+		returning ${calcCols()}
+	`;
+	return item;
+}
+
+export type CalcItemPatch = {
+	text?: string;
+	amount?: number;
+	payer?: Payer | null;
+};
+
+export async function updateCalcItem(
+	itemId: string,
+	patch: CalcItemPatch,
+	boardId: string
+): Promise<CalcItem | null> {
+	const [item] = await sql<CalcItem[]>`
+		update calc_items
+		set ${sql(patch as Record<string, unknown>)}
+		where id = ${itemId}
+		  and block_id in (select id from blocks where board_id = ${boardId})
+		returning ${calcCols()}
+	`;
+	return item ?? null;
+}
+
+export async function deleteCalcItem(
+	itemId: string,
+	boardId: string
+): Promise<{ id: string; block_id: string } | null> {
+	const rows = await sql<{ id: string; block_id: string }[]>`
+		delete from calc_items
+		where id = ${itemId}
 		  and block_id in (select id from blocks where board_id = ${boardId})
 		returning id, block_id
 	`;
