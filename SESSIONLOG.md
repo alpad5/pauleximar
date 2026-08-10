@@ -159,3 +159,11 @@ What was wasted, so it isn't repeated:
     protocol never completes. Confirmed with a raw-socket test, not sandbox-specific (same
     result with the sandbox disabled). Someone needs to run `npm run migrate` from a
     machine that can actually reach Railway before this feature works on the real board.
+  - Diagnosed further with the user: same hang (TCP connects, `openssl s_client` stops at
+    `CONNECTED(00000003)` and never completes the TLS handshake) reproduced on their own
+    machine too, no VPN. Ruled out stale `DATABASE_URL` (matches `.env` exactly) and local
+    network/VPN. `https://status.railway.com/` showed an **active partial outage in US West
+    (California)**: "intermittent connectivity to deployed services" — matches the symptom
+    (handshake ok, payload hangs) exactly. Root cause is Railway-side, not this app. Retry
+    `npm run migrate` once that incident clears; check the Postgres service's region in the
+    dashboard if it recurs.
