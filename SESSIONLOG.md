@@ -167,3 +167,6 @@ What was wasted, so it isn't repeated:
     (handshake ok, payload hangs) exactly. Root cause is Railway-side, not this app. Retry
     `npm run migrate` once that incident clears; check the Postgres service's region in the
     dashboard if it recurs.
+
+## 2026-08-10 (cont.)
+- **Deployed `calculo`/`resultados` migration.** Railway US-West outage from earlier today cleared; `npm run migrate` ran clean against live Postgres (006_calculo.sql applied, `calc_items` table live). PR #10 already open for the feature branch, waiting on merge go-ahead.
